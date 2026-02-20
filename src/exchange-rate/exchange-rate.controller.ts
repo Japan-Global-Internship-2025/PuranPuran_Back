@@ -9,7 +9,7 @@ export class ExchangeRateController {
   constructor(private readonly exchangeRateService: ExchangeRateService) { }
 
   @Get()
-  getRate(): string {
+  getRate() {
     return this.exchangeRateService.getRate();
   }
 }

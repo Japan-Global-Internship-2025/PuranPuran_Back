@@ -5,6 +5,8 @@ import { ExchangeRateModule } from './exchange-rate/exchange-rate.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { User } from './auth/entities/user.entity';
+import { ExchangeRate } from './exchange-rate/entities/exchange-rate.entitiy';
 
 @Module({
   imports: [
@@ -20,10 +22,10 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        entities: [User, ExchangeRate], 
         synchronize: true,
       }),
-    }),
+    }), 
     AuthModule,
   ],
   controllers: [AppController],
