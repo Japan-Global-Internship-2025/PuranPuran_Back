@@ -17,12 +17,7 @@ export class ExchangeRateService {
 
         if (!yesterdayRate) {
             console.log('어제 환율 정보 저장 중');
-            const fetchedRate = await this.fetchExchangeRateFromAPI(yesterday);
-            yesterdayRate = this.exchangeRateRepository.create({
-                date: yesterday as any,
-                rate: fetchedRate,
-            });
-            await this.exchangeRateRepository.save(yesterdayRate);
+            yesterdayRate = await this.getLatestAvailableRate(yesterday);
         }
 
         const rateResponse = await fetch("https://api.exchangerate.fun/latest?base=JPY")
@@ -30,8 +25,8 @@ export class ExchangeRateService {
         const currentDataTime = currentData.timestamp;
         const currentRate = currentData.rates.KRW * 100;
 
-        const difference = currentRate - yesterdayRate.rate;
-        const changePercentage = (difference / yesterdayRate.rate) * 100;
+        const difference = currentRate - yesterdayRate!.rate;
+        const changePercentage = (difference / yesterdayRate!.rate) * 100;
 
 
         const data = {
@@ -39,7 +34,7 @@ export class ExchangeRateService {
             data: {
                 time: currentDataTime,
                 now_rate: currentRate.toFixed(2),
-                yesterday_rate: yesterdayRate.rate.toFixed(2),
+                yesterday_rate: yesterdayRate!.rate.toFixed(2),
                 rate_compare: changePercentage.toFixed(2) + '%',
                 status: difference > 0 ? '+' : difference < 0 ? '-' : '=',
             }
@@ -64,19 +59,35 @@ export class ExchangeRateService {
         return Number(yen_rate);
     }
 
-    // async compareYesterday(currencyCode: string, currentRate: number) {
-    //     const yesterdayData = await this.getOrUpdateYesterdayRate(currencyCode);
-    //     const yesterdayRate = yesterdayData.rate;
+    // 데이터가 있을 때까지 과거로 가는 핵심 함수
+    private async getLatestAvailableRate(targetDate: string, retryCount = 0): Promise<any> {
+        if (retryCount > 10) return null;
 
-    //     const diff = currentRate - yesterdayRate;
-    //     const diffPercent = (diff / yesterdayRate) * 100;
+        // 1. 먼저 DB에 해당 날짜 데이터가 있는지 확인
+        let rateEntry = await this.exchangeRateRepository.findOne({
+            where: { date: targetDate as any }
+        });
 
-    //     return {
-    //         current: currentRate,
-    //         yesterday: yesterdayRate,
-    //         difference: diff.toFixed(2),
-    //         percent: diffPercent.toFixed(2) + '%',
-    //         status: diff > 0 ? '상승' : diff < 0 ? '하락' : '동결'
-    //     };
-    // }
+        if (rateEntry) return rateEntry;
+
+        // 2. DB에 없으면 API 호출
+        console.log(`${targetDate} 데이터 조회 중... (시도: ${retryCount + 1})`);
+        const apiData = await this.fetchExchangeRateFromAPI(targetDate);
+
+        if (!apiData) {
+            const dayBefore = dayjs(targetDate).subtract(1, 'day').format('YYYY-MM-DD');
+            return this.getLatestAvailableRate(dayBefore, retryCount + 1);
+        }
+
+        // 4. 데이터가 있다면 JPY(100) 찾아서 DB 저장 후 반환
+        const rate = apiData
+
+        const newRate = this.exchangeRateRepository.create({
+            date: targetDate,
+            rate: rate,
+        });
+        await this.exchangeRateRepository.save(newRate);
+        return newRate;
+    }
+
 }
