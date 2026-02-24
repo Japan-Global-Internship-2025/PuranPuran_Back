@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ExchangeRate } from './entities/exchange-rate.entitiy';
+import { ExchangeRate } from './entities/exchange-rate.entity';
 import { Repository } from 'typeorm';
 import dayjs from 'dayjs';
 
@@ -21,6 +21,10 @@ export class ExchangeRateService {
         }
 
         const rateResponse = await fetch("https://api.exchangerate.fun/latest?base=JPY")
+
+        // const textData = await rateResponse.text();
+        // console.log('API 응답 원본:', textData);
+
         const currentData = await rateResponse.json();
         const currentDataTime = currentData.timestamp;
         const currentRate = currentData.rates.KRW * 100;
@@ -45,7 +49,7 @@ export class ExchangeRateService {
         return data;
     }
 
-    async fetchExchangeRateFromAPI(yesterday: string): Promise<number> {
+    async getExchangeRateAPI(yesterday: string): Promise<number> {
         const baseUrl = 'https://oapi.koreaexim.go.kr/site/program/financial/exchangeJSON?';
         const apiKey = process.env.KOREAEXIM_API_KEY;
         const url = `${baseUrl}authkey=${apiKey}&searchdate=${yesterday}&data=AP01`;
@@ -72,7 +76,7 @@ export class ExchangeRateService {
 
         // 2. DB에 없으면 API 호출
         console.log(`${targetDate} 데이터 조회 중... (시도: ${retryCount + 1})`);
-        const apiData = await this.fetchExchangeRateFromAPI(targetDate);
+        const apiData = await this.getExchangeRateAPI(targetDate);
 
         if (!apiData) {
             const dayBefore = dayjs(targetDate).subtract(1, 'day').format('YYYY-MM-DD');

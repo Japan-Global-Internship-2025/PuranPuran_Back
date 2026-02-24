@@ -6,7 +6,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { User } from './auth/entities/user.entity';
-import { ExchangeRate } from './exchange-rate/entities/exchange-rate.entitiy';
+import { ExchangeRate } from './exchange-rate/entities/exchange-rate.entity';
+import { TravelModule } from './travel/travel.module';
+import { Travel } from './travel/entities/travel-entity';
+import { ReceiptModule } from './receipt/receipt.module';
+import { Receipt } from './receipt/entities/receipt.entity';
+import { PlannerModule } from './planner/planner.module';
 
 @Module({
   imports: [
@@ -22,11 +27,11 @@ import { ExchangeRate } from './exchange-rate/entities/exchange-rate.entitiy';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_NAME'),
-        entities: [User, ExchangeRate], 
+        entities: [User, ExchangeRate, Travel, Receipt], 
         synchronize: true,
       }),
     }), 
-    AuthModule,
+    AuthModule, TravelModule, ReceiptModule, PlannerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
