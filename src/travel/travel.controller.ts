@@ -7,10 +7,10 @@ import { GetUser } from '../auth/get-user.decorator';
 import { UpdateTravelDto } from './dto/update-travel.dto';
 
 
-@ApiTags('여행 정보 API')
+@ApiTags('여행 정보(旅行情報) API')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
-@Controller('travel')
+@Controller('api/travel')
 export class TravelController {
   constructor(private readonly travelService: TravelService) {}
   

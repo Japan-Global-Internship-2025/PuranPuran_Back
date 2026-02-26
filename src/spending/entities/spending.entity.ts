@@ -20,18 +20,15 @@ export enum Category {
     OTHER = '기타',
 }
 
-@Entity('receipts')
-export class Receipt {
+@Entity('spendings')
+export class Spending {
     @PrimaryGeneratedColumn()
     id: number;
 
     // 여행 엔티티와 N:1 연결
-    @ManyToOne(() => Travel, (travel) => travel.receipts, { onDelete: 'CASCADE' })
+    @ManyToOne(() => Travel, (travel) => travel.spendings, { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'travel_id' })
     travel: Travel;
-
-    @Column()
-    travel_id: number;
 
     @Column({ length: 100 })
     title: string; // 영수증 제목 (가게 이름)

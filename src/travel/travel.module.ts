@@ -9,5 +9,6 @@ import { Travel } from './entities/travel-entity';
   imports: [TypeOrmModule.forFeature([Travel])],
   controllers: [TravelController],
   providers: [TravelService],
+  exports: [TravelService],
 })
 export class TravelModule {}

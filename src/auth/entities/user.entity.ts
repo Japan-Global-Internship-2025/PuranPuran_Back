@@ -21,6 +21,6 @@ export class User {
     @CreateDateColumn()
     created_at: Date;
 
-    @OneToMany(() => Travel, (travel) => travel.user_id)
+    @OneToMany(() => Travel, (travel) => travel.user)
     travels: Travel[];
 }

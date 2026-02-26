@@ -7,7 +7,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { GetUser } from './get-user.decorator';
 
-@ApiTags('유저 인증 API')
+@ApiTags('유저 인증(ユーザー認証) API')
 @ApiBearerAuth()
 @Controller('api/auth')
 export class AuthController {

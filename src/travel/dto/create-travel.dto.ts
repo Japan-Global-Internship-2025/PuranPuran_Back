@@ -1,4 +1,4 @@
-import { IsNumber, IsString } from "class-validator"
+import { IsNumber, IsString, IsOptional, IsArray } from "class-validator"
 
 export class CreateTravelDto {
 
@@ -16,4 +16,13 @@ export class CreateTravelDto {
 
     @IsNumber()
     travel_budget: number
+
+    @IsOptional()
+    @IsString()
+    lodging_info?: string
+
+    @IsOptional()
+    @IsArray()
+    @IsString({ each: true })
+    places?: string[]
 }

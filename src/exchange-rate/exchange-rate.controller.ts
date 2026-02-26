@@ -4,7 +4,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('환율 API')
 @ApiBearerAuth()
-@Controller('exchange-rate')
+@Controller('api/exchange-rate')
 export class ExchangeRateController {
   constructor(private readonly exchangeRateService: ExchangeRateService) { }
 

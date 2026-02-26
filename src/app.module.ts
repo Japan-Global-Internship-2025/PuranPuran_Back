@@ -9,9 +9,11 @@ import { User } from './auth/entities/user.entity';
 import { ExchangeRate } from './exchange-rate/entities/exchange-rate.entity';
 import { TravelModule } from './travel/travel.module';
 import { Travel } from './travel/entities/travel-entity';
-import { ReceiptModule } from './receipt/receipt.module';
-import { Receipt } from './receipt/entities/receipt.entity';
+import { SpendingModule } from './spending/spending.module';
+import { Spending } from './spending/entities/spending.entity';
 import { PlannerModule } from './planner/planner.module';
+import { PlannerItem } from './planner/entities/planner-item.entity';
+import { DailyPlanner } from './planner/entities/daily-planner.entity';
 
 @Module({
   imports: [
@@ -22,16 +24,16 @@ import { PlannerModule } from './planner/planner.module';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'mysql',
-        host: configService.get('DB_HOST'),
-        port: configService.get<number>('DB_PORT'),
-        username: configService.get('DB_USERNAME'),
-        password: configService.get('DB_PASSWORD'),
-        database: configService.get('DB_NAME'),
-        entities: [User, ExchangeRate, Travel, Receipt], 
+        host: 'localhost',
+        port: 3306,
+        username: 'root',
+        password: '000000',
+        database: 'puranpuran',
+        entities: [User, ExchangeRate, Travel, Spending, DailyPlanner, PlannerItem], 
         synchronize: true,
       }),
     }), 
-    AuthModule, TravelModule, ReceiptModule, PlannerModule,
+    AuthModule, TravelModule, SpendingModule, PlannerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
