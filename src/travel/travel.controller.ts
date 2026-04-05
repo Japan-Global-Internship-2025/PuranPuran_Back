@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Post, UseGuards, Get, Param, Patch} from '@nestjs/common';
 import { TravelService } from './travel.service';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { CreateTravelDto } from './dto/create-travel.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
@@ -14,26 +14,31 @@ import { UpdateTravelDto } from './dto/update-travel.dto';
 export class TravelController {
   constructor(private readonly travelService: TravelService) {}
   
+  @ApiOperation({ summary: '여행 생성' })
   @Post('create')
   create(@GetUser() user: any, @Body() createTravelDto: CreateTravelDto) {
     return this.travelService.create(user, createTravelDto);
   }
 
+  @ApiOperation({ summary: '여행 삭제' })
   @Delete(':id')
   delete(@Param('id') id: number, @GetUser() user: any) {
     return this.travelService.delete(+id, user.user_id); 
   }
 
+  @ApiOperation({ summary: '여행 정보 수정' })
   @Patch(':id')
   update(@Param('id') id: number, @GetUser() user: any, @Body() updateTravelDto: UpdateTravelDto) {
     return this.travelService.update(+id, user.user_id, updateTravelDto); 
   }
 
+  @ApiOperation({ summary: '여행 정보 조회' })
   @Get(':id')
   findOne(@Param('id') id: number, @GetUser() user: any) {
     return this.travelService.findOne(+id, user.user_id);
   }
 
+  @ApiOperation({ summary: '모든 여행 정보 조회' })
   @Get()
   findAll(@GetUser() user: any) {
     return this.travelService.findAll(user.user_id);
