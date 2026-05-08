@@ -3,10 +3,10 @@ import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from "typeor
 @Entity()
 export class ExchangeRate {
     @PrimaryGeneratedColumn()
-    id: number;
+    id!: number;
 
     @Column({ type: 'date', unique: true })
-    date: Date;
+    date!: Date;
 
     @Column({
         type: 'decimal', 
@@ -16,8 +16,8 @@ export class ExchangeRate {
             from: (value: string) => parseFloat(value),
         },
     })
-    rate: number;
+    rate!: number;
 
     @CreateDateColumn()
-    created_at: Date;
+    created_at!: Date;
 }
