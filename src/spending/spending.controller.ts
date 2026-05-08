@@ -5,6 +5,7 @@ import { UpdateSpendingDto } from './dto/update-receipt.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
+import 'multer';
 
 @ApiTags('지출(支出) API')
 @ApiBearerAuth()

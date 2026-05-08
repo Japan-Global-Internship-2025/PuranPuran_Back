@@ -142,7 +142,7 @@ export class SpendingService {
             return JSON.parse(finalJsonString);
 
         } catch (error) {
-            console.error('❌ 영수증 분석 에러 상세:', error?.error?.error || error.message);
+            console.error('❌ 영수증 분석 에러 상세:', error);
             throw new InternalServerErrorException('영수증을 분석하는 중 오류가 발생했습니다.');
         }
     }
