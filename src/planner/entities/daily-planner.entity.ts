@@ -8,6 +8,12 @@ export class DailyPlanner {
   @PrimaryGeneratedColumn()
   id!: number;
 
+  @Column({ length: 255 })
+  place!: string;
+
+  @Column({ length: 100 })
+  category!: string; // 일정 카테고리 (예: 관광, 쇼핑, 음식 등)
+
   @Column({ type: 'date' })
   plan_date!: string; // 일정 날짜 (예: 2026-10-15)
 
@@ -17,10 +23,10 @@ export class DailyPlanner {
   @Column({ type: 'time', nullable: true })
   end_time!: string; // 희망 종료 시간 (예: 20:00:00)
 
-  @Column({ type: 'text', nullable: true }) // 💡 MySQL이 이해할 수 있는 'text' 타입 지정
+  @Column({ type: 'text', nullable: true })
   daily_description!: string;  // 해당 날짜의 대략적인 일정 설명 (ex. 나고야역, 사카에)
 
-  @Column({ type: 'text', nullable: true }) // 💡 MySQL이 이해할 수 있는 'text' 타입 지정
+  @Column({ type: 'text', nullable: true })
   ai_request!: string | null; // 유저가 입력한 한 줄 요청사항
 
   // 어떤 여행에 속하는지

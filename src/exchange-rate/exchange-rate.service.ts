@@ -34,17 +34,14 @@ export class ExchangeRateService {
 
 
         const data = {
-            message: 'Success!',
-            data: {
-                time: currentDataTime,
-                now_rate: currentRate.toFixed(2),
-                yesterday_rate: yesterdayRate!.rate.toFixed(2),
-                rate_compare: changePercentage.toFixed(2) + '%',
-                status: difference > 0 ? '+' : difference < 0 ? '-' : '=',
-            }
+            time: currentDataTime,
+            now_rate: currentRate.toFixed(2),
+            yesterday_rate: yesterdayRate!.rate.toFixed(2),
+            rate_compare: changePercentage.toFixed(2),
+            status: difference > 0 ? '+' : difference < 0 ? '-' : '='
         }
 
-        console.log('환율 비교 결과:', data.data);
+        console.log('환율 비교 결과:', data);
 
         return data;
     }
@@ -78,6 +75,7 @@ export class ExchangeRateService {
         console.log(`${targetDate} 데이터 조회 중... (시도: ${retryCount + 1})`);
         const apiData = await this.getExchangeRateAPI(targetDate);
 
+        // 3. API에도 데이터가 없으면 하루씩 과거로 가면서 재귀 호출
         if (!apiData) {
             const dayBefore = dayjs(targetDate).subtract(1, 'day').format('YYYY-MM-DD');
             return this.getLatestAvailableRate(dayBefore, retryCount + 1);

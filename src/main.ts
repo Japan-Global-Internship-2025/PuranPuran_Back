@@ -3,13 +3,16 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as fs from 'fs';
-
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.enableCors(); 
+  app.use(cookieParser());
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  }); 
 
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,

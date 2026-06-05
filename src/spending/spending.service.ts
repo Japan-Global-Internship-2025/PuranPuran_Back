@@ -25,7 +25,7 @@ export class SpendingService {
     async create(createSpendingDto: CreateSpendingDto, travel_id: number) {
         const amount_total = createSpendingDto.total_amount;
         const nowday = dayjs().subtract(0, 'day').format('YYYY-MM-DD');
-        const amount_total_krw = (await this.exchangeRateService.getExchangeRateAPI(nowday) / 100) * amount_total;
+        const amount_total_krw = Math.floor((await this.exchangeRateService.getExchangeRateAPI(nowday) / 100) * amount_total);
         return await this.spendingRepository.save({ ...createSpendingDto, travel: { id: travel_id }, total_krw: amount_total_krw });
     }
 
@@ -160,7 +160,7 @@ export class SpendingService {
         console.log(receipts);
         // const totalAmount = receipts.reduce((sum, receipt) => sum + receipt.total_amount, 0);
         const totalAmount = receipts.reduce((sum, receipt) => sum + receipt.total_krw, 0);
-        return { totalAmount };
+        return totalAmount;
     }
 
     async categorySpending(travel_id: number) {

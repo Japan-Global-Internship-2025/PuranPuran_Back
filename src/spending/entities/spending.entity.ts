@@ -33,6 +33,9 @@ export class Spending {
     @Column({ length: 100 })
     title!: string; // 영수증 제목 (가게 이름)
 
+    @Column({ type: 'varchar', length: 200, nullable: true, default: null })
+    location!: string | null; // 장소 (선택)
+
     @Column({ type: 'datetime' })
     date!: Date; // 결제 날짜 및 시간
 
