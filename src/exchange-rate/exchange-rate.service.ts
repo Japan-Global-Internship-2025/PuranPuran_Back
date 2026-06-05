@@ -78,6 +78,7 @@ export class ExchangeRateService {
         console.log(`${targetDate} 데이터 조회 중... (시도: ${retryCount + 1})`);
         const apiData = await this.getExchangeRateAPI(targetDate);
 
+        // 3. API에도 데이터가 없으면 하루씩 과거로 가면서 재귀 호출
         if (!apiData) {
             const dayBefore = dayjs(targetDate).subtract(1, 'day').format('YYYY-MM-DD');
             return this.getLatestAvailableRate(dayBefore, retryCount + 1);
