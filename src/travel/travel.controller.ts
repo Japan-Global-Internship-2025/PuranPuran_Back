@@ -23,24 +23,30 @@ export class TravelController {
   @ApiOperation({ summary: '여행 삭제' })
   @Delete(':id')
   delete(@Param('id') id: number, @GetUser() user: any) {
-    return this.travelService.delete(+id, user.user_id); 
+    return this.travelService.delete(+id, user.id); 
   }
 
   @ApiOperation({ summary: '여행 정보 수정' })
   @Patch(':id')
   update(@Param('id') id: number, @GetUser() user: any, @Body() updateTravelDto: UpdateTravelDto) {
-    return this.travelService.update(+id, user.user_id, updateTravelDto); 
+    return this.travelService.update(+id, user.id, updateTravelDto); 
   }
 
   @ApiOperation({ summary: '여행 정보 조회' })
   @Get(':id')
   findOne(@Param('id') id: number, @GetUser() user: any) {
-    return this.travelService.findOne(+id, user.user_id);
+    return this.travelService.findOne(+id, user.id);
   }
 
   @ApiOperation({ summary: '모든 여행 정보 조회' })
   @Get()
   findAll(@GetUser() user: any) {
-    return this.travelService.findAll(user.user_id);
+    return this.travelService.findAll(user.id);
+  }
+
+  @ApiOperation({ summary: '현재 여행지의 추천 장소' })
+  @Get(':id/recommendation')
+  getRecommendations(@Param('id') id: number, @GetUser() user: any) {
+    return this.travelService.getRecommendations(+id, user.id);
   }
 }

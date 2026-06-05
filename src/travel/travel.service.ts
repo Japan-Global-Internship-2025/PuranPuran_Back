@@ -3,19 +3,42 @@ import { CreateTravelDto } from './dto/create-travel.dto';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Travel } from './entities/travel-entity';
-import { NotFoundException } from '@nestjs/common/exceptions/not-found.exception';
+import { NotFoundException, BadRequestException } from '@nestjs/common';
 import { UpdateTravelDto } from './dto/update-travel.dto';
+import { User } from '../auth/entities/user.entity';
+import { Groq } from 'groq-sdk';
+import { RecommendPlace } from './entities/recommend-place.entity';
+import { TravelRegion } from './entities/travel-region.entity';
 
 @Injectable()
 export class TravelService {
     constructor(
         @InjectRepository(Travel) private travelRepository: Repository<Travel>,
+        @InjectRepository(User) private userRepository: Repository<User>,
+        @InjectRepository(RecommendPlace) private recommendPlaceRepository: Repository<RecommendPlace>,
+        @InjectRepository(TravelRegion) private travelRegionRepository: Repository<TravelRegion>,
 
     ) { }
 
     async create(user: any, createTravelDto: CreateTravelDto) {
-        const travel = this.travelRepository.create({ ...createTravelDto, user: user.id });
-        return this.travelRepository.save(travel);
+        const region_name = createTravelDto.travel_region;
+        const region_id = await this.travelRegionRepository.findOne({
+            where: { region: region_name as any },
+        });
+        if (!region_id) {
+            throw new BadRequestException('유효하지 않은 여행 지역입니다.');
+        }
+
+        const travel = await this.travelRepository.create({
+            ...createTravelDto, 
+            user: { id: user.id },
+            travel_region_id: { id: region_id.id },
+        });
+        const savedTravel = await this.travelRepository.save(travel);
+
+        await this.userRepository.update(user.id, { lastest_travel_id: savedTravel.id });
+
+        return savedTravel;
     }
 
     async delete(id: number, user_id: number) {
@@ -45,8 +68,14 @@ export class TravelService {
     }
 
     async findOne(id: number, user_id: number) {
+        if (isNaN(id)) {
+            throw new NotFoundException('유효하지 않은 여행 ID입니다.');
+        }
+        console.log('Finding travel with ID:', id, 'for user ID:', user_id);
+
         const travel = await this.travelRepository.findOne({
-            where: { id: id as any, user: user_id as any },
+            where: { id: id, user: user_id as any },
+            relations: ['travel_region_id'],
         });
         if (!travel) {
             throw new NotFoundException('해당 여행 정보를 찾을 수 없습니다.');
@@ -57,8 +86,29 @@ export class TravelService {
     async findAll(user_id: number) {
         return this.travelRepository.find({
             where: { user: user_id as any },
+            relations: ['travel_region_id'],
         });
     }
 
-    
+    async getRecommendations(id: number, user_id: number) {
+        const travel = await this.travelRepository.findOne({
+            where: { id: id, user: user_id as any },
+            relations: { travel_region_id: true },
+        });
+        if (!travel) {
+            throw new NotFoundException('해당 여행 정보를 찾을 수 없습니다.');
+        }
+
+        const regionId = travel.travel_region_id?.id;
+
+        if (!regionId) {
+            throw new NotFoundException('여행 지역 정보를 찾을 수 없습니다.');
+        }
+
+        const recommendPlaces = await this.recommendPlaceRepository.find({
+            where: { travelRegion: { id: regionId } },
+            relations: { travelRegion: true },
+        });
+        return recommendPlaces;
+    }
 }

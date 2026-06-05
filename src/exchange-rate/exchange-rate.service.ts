@@ -34,17 +34,14 @@ export class ExchangeRateService {
 
 
         const data = {
-            message: 'Success!',
-            data: {
-                time: currentDataTime,
-                now_rate: currentRate.toFixed(2),
-                yesterday_rate: yesterdayRate!.rate.toFixed(2),
-                rate_compare: changePercentage.toFixed(2) + '%',
-                status: difference > 0 ? '+' : difference < 0 ? '-' : '=',
-            }
+            time: currentDataTime,
+            now_rate: currentRate.toFixed(2),
+            yesterday_rate: yesterdayRate!.rate.toFixed(2),
+            rate_compare: changePercentage.toFixed(2),
+            status: difference > 0 ? '+' : difference < 0 ? '-' : '='
         }
 
-        console.log('환율 비교 결과:', data.data);
+        console.log('환율 비교 결과:', data);
 
         return data;
     }

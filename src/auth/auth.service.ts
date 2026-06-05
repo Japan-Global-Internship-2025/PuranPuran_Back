@@ -25,6 +25,7 @@ export class AuthService {
 
   async findOne(id: number) {
     const user = await this.userRepository.findOneBy({ id });
+    // console.log('Finding user with ID:', id, 'Result:', user);
     if (!user) {
       throw new NotFoundException('해당 유저를 찾을 수 없습니다.');
     }
@@ -43,7 +44,7 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const user = await this.userRepository.findOne({ where: { user_id: loginDto.user_id }, select: ['id', 'user_pw'] });
+    const user = await this.userRepository.findOne({ where: { user_id: loginDto.user_id }, select: ['id', 'user_id', 'user_pw'] });
     const isMatch = user && await bcrypt.compare(loginDto.user_pw, user.user_pw);
 
     if (!user || !isMatch) {
@@ -54,6 +55,15 @@ export class AuthService {
 
     return {
       access_token: this.jwtService.sign(payload),
+    }
+  }
+
+  async getUsername(id: number) {
+    const user = await this.userRepository.findOneBy({ id });
+    if (!user) {
+      throw new NotFoundException('해당 유저를 찾을 수 없습니다.');
+    } else {
+      return { user_id: user.user_id };
     }
   }
 }

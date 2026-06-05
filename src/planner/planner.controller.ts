@@ -49,7 +49,6 @@ export class PlannerController {
     @Param('travelId', ParseIntPipe) travelId: number,
     @Body() savePlannerDto: SavePlannerDto, // 프론트엔드에서 최종 확정한 데이터 전체
   ) {
-    // 💡 DB에 실제 저장하는 서비스 로직 호출
     return await this.plannerService.savePlan(travelId, savePlannerDto);
   }
 
@@ -76,5 +75,11 @@ export class PlannerController {
   @Patch(':plannerId')
   update(@Param('plannerId', ParseIntPipe) plannerId: number, @Body() updatePlannerDto: UpdatePlannerDto) {
     return this.plannerService.update(plannerId, updatePlannerDto);
+  }
+
+  @ApiOperation({ summary: '오늘의 일정 조회' })
+  @Get(':plannerId/today')
+  async getTodayPlan(@Param('plannerId', ParseIntPipe) plannerId: number) {
+    return await this.plannerService.getTodayPlan(plannerId);
   }
 }

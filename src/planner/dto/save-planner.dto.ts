@@ -12,6 +12,8 @@ export class PlannerItemDto {
 }
 
 export class SavePlannerDto {
+  @IsString() place: string;
+  @IsString() category: string;
   @IsString() plan_date: string;
   @IsString() start_time: string;
   @IsString() end_time: string;

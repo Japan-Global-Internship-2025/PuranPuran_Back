@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -6,6 +6,7 @@ import { LoginDto } from './dto/login.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { GetUser } from './get-user.decorator';
+import type { Response } from 'express';
 
 @ApiTags('유저 인증(ユーザー認証) API')
 @ApiBearerAuth()
@@ -42,7 +43,24 @@ export class AuthController {
 
   @ApiOperation({ summary: '사용자 로그인' })
   @Post('login')
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
+  async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) response: Response) {
+    const result = await this.authService.login(loginDto);
+
+    response.cookie('access_token', result.access_token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: false,
+      path: '/',
+      maxAge: 1000 * 60 * 60 * 24,
+    });
+
+    return result;
+  }
+
+  @ApiOperation({ summary : '사용자 이름 조회'})
+  @UseGuards(AuthGuard('jwt'))
+  @Get('username')
+  getUsername(@GetUser() user: any) {
+    return this.authService.getUsername(user.id);
   }
 }

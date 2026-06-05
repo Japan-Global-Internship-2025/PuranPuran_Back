@@ -1,28 +1,36 @@
-import { IsNumber, IsString, IsOptional, IsArray } from "class-validator"
+import { IsNumber, IsString, IsOptional, IsArray, IsNotEmpty } from "class-validator"
 
 export class CreateTravelDto {
 
     @IsString()
-    travel_name: string
+    @IsNotEmpty()
+    travel_name!: string
 
     @IsString()
-    travel_region: string
+    @IsNotEmpty()
+    travel_region!: string
 
     @IsString()
-    travel_start_date: Date
+    @IsNotEmpty()
+    travel_start_date!: Date
 
     @IsString()
-    travel_end_date: Date
+    @IsNotEmpty()
+    travel_end_date!: Date
 
     @IsNumber()
-    travel_budget: number
+    @IsNotEmpty()
+    travel_budget!: number
+
+    @IsArray()
+    @IsOptional()
+    walk_distance!: string[]
+
+    @IsArray()
+    @IsOptional()
+    transportation!: string[]
 
     @IsOptional()
     @IsString()
-    lodging_info?: string
-
-    @IsOptional()
-    @IsArray()
-    @IsString({ each: true })
-    places?: string[]
+    lodging_info!: string
 }

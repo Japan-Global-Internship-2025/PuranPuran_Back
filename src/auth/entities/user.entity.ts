@@ -1,26 +1,29 @@
-import { Travel } from 'src/travel/entities/travel-entity';
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany } from 'typeorm';
+import { Travel } from '../../travel/entities/travel-entity';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
 
 @Entity()
 export class User {
     @PrimaryGeneratedColumn()
-    id: number;
+    id!: number;
 
     @Column({ length: 50 })
-    user_id: string;
+    user_id!: string;
 
     @Column({ length: 255, select: false })
-    user_pw: string;
+    user_pw!: string;
 
     @Column({ length: 50 })
-    user_email: string;
+    user_email!: string;
 
     @Column({ length: 30 })
-    taste: string;
+    taste!: string;
+
+    @Column({ type: 'int', nullable: true })
+    lastest_travel_id!: number | null;
 
     @CreateDateColumn()
-    created_at: Date;
+    created_at!: Date;
 
     @OneToMany(() => Travel, (travel) => travel.user)
-    travels: Travel[];
+    travels!: Travel[];
 }

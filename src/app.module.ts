@@ -14,6 +14,11 @@ import { Spending } from './spending/entities/spending.entity';
 import { PlannerModule } from './planner/planner.module';
 import { PlannerItem } from './planner/entities/planner-item.entity';
 import { DailyPlanner } from './planner/entities/daily-planner.entity';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
+import { RecommendPlace } from './travel/entities/recommend-place.entity';
+import { TravelRegion } from './travel/entities/travel-region.entity';
 
 @Module({
   imports: [
@@ -29,13 +34,22 @@ import { DailyPlanner } from './planner/entities/daily-planner.entity';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User, ExchangeRate, Travel, Spending, DailyPlanner, PlannerItem], 
+        entities: [User, ExchangeRate, Travel, Spending, DailyPlanner, PlannerItem, TravelRegion, RecommendPlace], 
         synchronize: true,
       }),
     }), 
     AuthModule, TravelModule, SpendingModule, PlannerModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService,
+    {
+      provide: APP_FILTER,
+      useClass: HttpExceptionFilter, // 전역 필터로 사용할 클래스 지정
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TransformInterceptor,
+    }
+  ],
 })
 export class AppModule { }

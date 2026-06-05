@@ -2,14 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { CreatePlannerDto } from './dto/create-planner.dto';
 import { UpdatePlannerDto } from './dto/update-planner.dto';
 import { PlannerItem } from './entities/planner-item.entity';
-import { Repository } from 'typeorm';
+import { Repository, LessThan } from 'typeorm';
 import { DailyPlanner } from './entities/daily-planner.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import Groq from 'groq-sdk';
-import { InternalServerErrorException } from '@nestjs/common/exceptions/internal-server-error.exception';
+import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { Travel } from '../travel/entities/travel-entity';
 import { tavily } from "@tavily/core";
-import { NotFoundException } from '@nestjs/common/exceptions/not-found.exception';
 import { SavePlannerDto } from './dto/save-planner.dto';
 
 import { SaveTotalPlanDto } from './dto/save-total-plan.dto';
@@ -56,6 +55,8 @@ export class PlannerService {
         "dailyPlans": [
           {
             "plan_date": "YYYY-MM-DD",
+            "place": "해당 날짜에 가면 좋을 장소나 지역 (예: 나고야역 주변)",
+            "category": "카테고리(예: 관광·역주변, 쇼핑·번화가, 음식·맛집 등)",
             "daily_description": "해당 날짜의 대략적인 일정 설명 (ex. 나고야역 중심의 쇼핑과 먹거리 투어)"
           }
         ]
@@ -95,6 +96,8 @@ export class PlannerService {
             } else {
                 dailyPlanner = this.dailyPlannerRepository.create({
                     travel: { id: travelId } as any,
+                    place: plan.place,
+                    category: plan.category,
                     plan_date: plan.plan_date,
                     daily_description: plan.daily_description
                 });
@@ -130,6 +133,19 @@ export class PlannerService {
             where: { travel: { id: travelId } as any, plan_date: createPlannerDto.plan_date }
         });
 
+        // 이전 날짜들의 일정을 가져와서 중복 장소를 피하도록 합니다.
+        const previousPlans = await this.dailyPlannerRepository.find({
+            where: {
+                travel: { id: travelId } as any,
+                plan_date: LessThan(createPlannerDto.plan_date)
+            },
+            relations: ['items']
+        });
+
+        const visitedPlaces = previousPlans.flatMap(plan => 
+            plan.items.map(item => item.place_name)
+        );
+
         const searchQuery = `${travelInfo.travel_region} ${existingDailyPlan?.daily_description || ''} 맛집 및 가볼만한 곳 추천`;
         const searchResponse = await this.tavily.search(searchQuery, {
             searchDepth: "basic", 
@@ -141,7 +157,8 @@ export class PlannerService {
             .map(r => `제목: ${r.title}, 내용: ${r.content}`)
             .join("\n");
 
-        const prompt = this.buildPrompt(createPlannerDto, travelInfo, searchContext, existingDailyPlan?.daily_description);
+        const prompt = this.buildPrompt(createPlannerDto, travelInfo, searchContext, existingDailyPlan?.daily_description, visitedPlaces);
+        console.log('생성된 프롬프트:', prompt); // 디버깅을 위한 프롬프트 출력
 
         try {
             // 2. Groq API 호출
@@ -160,6 +177,8 @@ export class PlannerService {
             // 3. DB 저장 (기존 정보가 있으면 업데이트, 없으면 새로 생성)
             const newPlan = existingDailyPlan || this.dailyPlannerRepository.create({
                 plan_date: createPlannerDto.plan_date,
+                place: createPlannerDto.place,
+                category: createPlannerDto.category,
                 travel: { id: travelId } as any,
             });
 
@@ -179,7 +198,7 @@ export class PlannerService {
     }
 
     // 💡 인자에 daily_description: string | undefined 이 추가되었습니다.
-    private buildPrompt(createPlannerDto: CreatePlannerDto, travel: any, searchContext: string, dailyDescription?: string | null): string {
+    private buildPrompt(createPlannerDto: CreatePlannerDto, travel: any, searchContext: string, dailyDescription?: string | null, visitedPlaces: string[] = []): string {
         console.log('여행 정보:', JSON.stringify(travel, null, 2));
         return `
       다음 [여행 배경 정보], [오늘의 대략적인 일정], 그리고 [오늘의 요구사항]을 바탕으로 최적의 상세 일정을 짜줘. 
@@ -196,6 +215,7 @@ export class PlannerService {
       - 숙소 정보(위치): ${travel.lodging_info || '아직 미정'}
       - 사용자 여행 취향: ${travel.user.taste}
       - 총 여행 플래너 장소: ${travel.places ? travel.places.join(', ') : '없음'}
+      - 이미 방문한 장소(중복 추천 금지): ${visitedPlaces.length > 0 ? visitedPlaces.join(', ') : '없음'}
 
       [오늘의 대략적인 일정]
       - ${dailyDescription || '없음 (네가 자유롭게 추천해줘)'}
@@ -210,6 +230,9 @@ export class PlannerService {
       2. 취향 반영: 사용자의 여행 취향(${travel.user.taste})을 적극 반영한 장소를 추천할 것.
       3. 대략적인 일정 준수: 오늘의 대략적인 일정(${dailyDescription || '없음'})이 있다면 그 흐름에 맞게 상세 일정을 구성할 것.
       4. 예산 고려: 총 예산을 고려하여 너무 과도한 지출이 발생하지 않는 선에서 카테고리(식사/쇼핑 등)를 분배할 것.
+      5. 중복 배제: [이미 방문한 장소] 목록에 있는 곳은 오늘 일정에서 제외할 것.
+      6. 첫날은 숙소 주변에서 가볍게 시작하는 것을 추천. 마지막 날은 공항이나 역 근처에서 마무리하는 것을 추천.
+      7. 장소 추천 시, 실제 존재하는 장소로만 짤 것. 그리고 위경도 정보도 최대한 정확하게 알려줄 것.
 
       응답은 반드시 아래 구조의 JSON 배열을 포함하는 객체여야 해:
       {
@@ -217,22 +240,33 @@ export class PlannerService {
           {
             "visit_time": "HH:mm",
             "place_name": "장소 이름",
-            "category": "카테고리(예: 식사·인기, 쇼핑·역주변)",
-            "description": "이 장소가 왜 사용자의 취향과 부합하는지 1~2문장의 짧은 설명",
+            "category": "(예: 식사·인기, 쇼핑·역주변)",
+            "description": "사용자의 취향과 부합하는지 1~2문장의 설명",
             "latitude": "숫자형 위도",
             "longitude": "숫자형 경도",
-            "location": "해당 장소의 주소",
-            "image_url": "해당 장소의 특징을 나타내는 영어 단어 1개(예: 'sushi', 'temple')" 
+            "location": "장소의 주소",
+            "image_url": "장소의 특징을 나타내는 영어 단어 1개(예: 'sushi', 'temple')" 
           }
         ]
       }
-      * 주의: 실제 존재하는 장소로 짜고, 위경도는 최대한 정확하게 알려줘.
+      * 주의: 실제 존재하는 장소로 짜고, 위경도는 최대한 정확하게 알려줘. 그리고 한국어로 대답해.
     `;
     }
 
 
     async savePlan(travelId: number, savePlannerDto: SavePlannerDto) {
+        // 기존 일정이 있는지 먼저 확인 (있으면 삭제 후 재생성하여 중복 방지)
+        const existingPlan = await this.dailyPlannerRepository.findOne({
+            where: { travel: { id: travelId } as any, plan_date: savePlannerDto.plan_date },
+        });
+
+        if (existingPlan) {
+            await this.dailyPlannerRepository.remove(existingPlan);
+        }
+
         const newPlan = this.dailyPlannerRepository.create({
+            place: savePlannerDto.place,
+            category: savePlannerDto.category,
             plan_date: savePlannerDto.plan_date,
             start_time: savePlannerDto.start_time,
             end_time: savePlannerDto.end_time,
@@ -277,5 +311,12 @@ export class PlannerService {
 
     remove(id: number) {
         return `This action removes a #${id} planner`;
+    }
+
+    getTodayPlan(plannerId: number) {
+        return this.dailyPlannerRepository.findOne({
+            where: { id: plannerId, plan_date: new Date().toISOString().split('T')[0] },
+            relations: ['items'],
+        });
     }
 }
