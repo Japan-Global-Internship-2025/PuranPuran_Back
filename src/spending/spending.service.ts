@@ -111,7 +111,7 @@ export class SpendingService {
       {
         "title": "가게 이름 (모르면 '알 수 없음')",
         'location': '가게 위치 (모르면 "알 수 없음")',
-        "date": "datetime 형식",
+        "date": "YYYY-MM-DD 형식 (예: 2024-12-25)",
         "total_amount": "총 결제 금액 (int값)",
         "category": "식비, 여가, 쇼핑, 기타 중 하나",
         "payment_method": "CASH, CARD, OTHER 중 하나"
