@@ -1,5 +1,6 @@
 import { Travel } from '../../travel/entities/travel-entity';
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, OneToMany, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
+import { JapaneseExpression } from '../../japanese/entities/japanese-expression.entity';
 
 @Entity()
 export class User {
@@ -26,4 +27,11 @@ export class User {
 
     @OneToMany(() => Travel, (travel) => travel.user)
     travels!: Travel[];
+
+    @ManyToOne(() => JapaneseExpression, { nullable: true })
+    @JoinColumn({ name: 'current_expression_id' })
+    currentExpression!: JapaneseExpression | null;
+
+    @Column({ type: 'date', nullable: true })
+    expressionUpdatedAt!: string | null;
 }

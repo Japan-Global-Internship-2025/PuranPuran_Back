@@ -6,10 +6,11 @@ import { Repository, LessThan } from 'typeorm';
 import { DailyPlanner } from './entities/daily-planner.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import Groq from 'groq-sdk';
-import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { InternalServerErrorException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { Travel } from '../travel/entities/travel-entity';
 import { tavily } from "@tavily/core";
 import { SavePlannerDto } from './dto/save-planner.dto';
+import axios from 'axios';
 
 import { SaveTotalPlanDto } from './dto/save-total-plan.dto';
 
@@ -28,6 +29,28 @@ export class PlannerService {
     ) {
         this.groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
         this.tavily = tavily({ apiKey: process.env.TAVILY_API_KEY });
+    }
+
+    private async getPixabayImage(keyword: string, placeName: string): Promise<string> {
+        if (!keyword) return '';
+        const apiKey = process.env.PIXABAY_API_KEY;
+        if (!apiKey) {
+            console.warn('PIXABAY_API_KEY가 설정되지 않았습니다.');
+            return '';
+        }
+
+        try {
+            const url = `https://pixabay.com/api/?key=${apiKey}&q=${encodeURIComponent(keyword + '_' + placeName)}&image_type=photo&orientation=horizontal&safesearch=true&per_page=3`;
+            const response = await axios.get(url);
+            const hits = response.data.hits;
+            if (hits && hits.length > 0) {
+                return hits[0].webformatURL;
+            }
+            return '';
+        } catch (error) {
+            console.error('Pixabay 이미지 검색 실패:', error);
+            return '';
+        }
     }
 
     // 💡 여행 전체의 대략적인 일정을 AI가 추천해줍니다.
@@ -50,17 +73,20 @@ export class PlannerService {
       - 사용자 취향: ${travelInfo.user.taste}
       - 숙소 정보: ${travelInfo.lodging_info || '미정'}
 
-      응답은 반드시 아래 구조의 JSON 배열을 포함하는 객체여야 해:
+      응답은 반드시 한국어로 하고, 아래 구조의 JSON 배열을 포함하는 객체여야 해:
       {
         "dailyPlans": [
           {
             "plan_date": "YYYY-MM-DD",
             "place": "해당 날짜에 가면 좋을 장소나 지역 (예: 나고야역 주변)",
             "category": "카테고리(예: 관광·역주변, 쇼핑·번화가, 음식·맛집 등)",
-            "daily_description": "해당 날짜의 대략적인 일정 설명 (ex. 나고야역 중심의 쇼핑과 먹거리 투어)"
+            "daily_description": "해당 날짜의 대략적인 일정 설명 (ex. 나고야역 중심의 쇼핑과 먹거리 투어)",
+            "latitude": 해당 장소의 위도 (숫자형, 예: 35.1706),
+            "longitude": 해당 장소의 경도 (숫자형, 예: 136.9067)
           }
         ]
       }
+      * 위경도는 place에 해당하는 실제 위치를 최대한 정확하게 넣어줘.
     `;
 
         try {
@@ -69,7 +95,7 @@ export class PlannerService {
                     { role: 'system', content: '너는 일본 여행 플래너야. 반드시 JSON 형식으로만 대답해.' },
                     { role: 'user', content: prompt },
                 ],
-                model: 'llama-3.3-70b-versatile',
+                model: 'qwen/qwen3-32b',
                 response_format: { type: 'json_object' },
             });
 
@@ -93,13 +119,17 @@ export class PlannerService {
 
             if (dailyPlanner) {
                 dailyPlanner.daily_description = plan.daily_description;
+                if (plan.latitude != null) dailyPlanner.latitude = plan.latitude;
+                if (plan.longitude != null) dailyPlanner.longitude = plan.longitude;
             } else {
                 dailyPlanner = this.dailyPlannerRepository.create({
                     travel: { id: travelId } as any,
                     place: plan.place,
                     category: plan.category,
                     plan_date: plan.plan_date,
-                    daily_description: plan.daily_description
+                    daily_description: plan.daily_description,
+                    latitude: plan.latitude,
+                    longitude: plan.longitude,
                 });
             }
             savedPlans.push(await this.dailyPlannerRepository.save(dailyPlanner));
@@ -121,7 +151,7 @@ export class PlannerService {
     async createAIPlan(travelId: number, createPlannerDto: CreatePlannerDto) {
         const travelInfo = await this.travelRepository.findOne({
             where: { id: travelId },
-            relations: ['user'], 
+            relations: ['user'],
         });
 
         if (!travelInfo) {
@@ -133,6 +163,10 @@ export class PlannerService {
             where: { travel: { id: travelId } as any, plan_date: createPlannerDto.plan_date }
         });
 
+        if (!existingDailyPlan) {
+            throw new BadRequestException('전체 일정 요약(총 여행 플래너)이 먼저 생성되어야 합니다.');
+        }
+
         // 이전 날짜들의 일정을 가져와서 중복 장소를 피하도록 합니다.
         const previousPlans = await this.dailyPlannerRepository.find({
             where: {
@@ -142,15 +176,23 @@ export class PlannerService {
             relations: ['items']
         });
 
-        const visitedPlaces = previousPlans.flatMap(plan => 
+        const visitedPlaces = previousPlans.flatMap(plan =>
             plan.items.map(item => item.place_name)
         );
 
+        let searchResponse;
         const searchQuery = `${travelInfo.travel_region} ${existingDailyPlan?.daily_description || ''} 맛집 및 가볼만한 곳 추천`;
-        const searchResponse = await this.tavily.search(searchQuery, {
-            searchDepth: "basic", 
-            maxResults: 10,       
-        });
+        try {
+            searchResponse = await this.tavily.search(searchQuery, {
+                searchDepth: "basic",
+                maxResults: 10,
+            });
+        }
+        catch (error) {
+            console.error('Tavily 검색 실패:', error);
+            searchResponse = { results: [] }; // 검색 실패 시 빈 결과로 대체
+        }
+
 
         // 검색된 내용을 텍스트로 합치기
         const searchContext = searchResponse.results
@@ -167,12 +209,21 @@ export class PlannerService {
                     { role: 'system', content: '너는 일본 여행 일정 짜기 전문가야. 반드시 JSON 형식으로만 대답해.' },
                     { role: 'user', content: prompt },
                 ],
-                model: 'llama-3.3-70b-versatile', 
-                response_format: { type: 'json_object' }, 
+                model: 'qwen/qwen3-32b',
+                response_format: { type: 'json_object' },
             });
 
             const aiResponse = JSON.parse(chatCompletion.choices[0].message.content!);
             const items = aiResponse.itinerary;
+
+            // Pixabay에서 이미지 검색하여 가져오기
+            const itemsWithImages = await Promise.all(items.map(async (item) => {
+                const imageUrl = await this.getPixabayImage(item.image_url, item.place_name);
+                return {
+                    ...item,
+                    image_url: imageUrl || 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=500&q=80' // 결과 없으면 기본 이미지
+                };
+            }));
 
             // 3. DB 저장 (기존 정보가 있으면 업데이트, 없으면 새로 생성)
             const newPlan = existingDailyPlan || this.dailyPlannerRepository.create({
@@ -185,12 +236,12 @@ export class PlannerService {
             newPlan.start_time = createPlannerDto.start_time;
             newPlan.end_time = createPlannerDto.end_time;
             newPlan.ai_request = createPlannerDto.ai_request ?? null;
-            newPlan.items = items.map((item, index) => ({
+            newPlan.items = itemsWithImages.map((item, index) => ({
                 ...item,
-                sequence: index + 1, 
+                sequence: index + 1,
             }));
 
-            return newPlan; 
+            return newPlan;
         } catch (error) {
             console.error('AI 일정 생성 실패:', error);
             throw new InternalServerErrorException('AI 일정을 생성하는 중 에러가 발생했습니다.');
@@ -289,11 +340,20 @@ export class PlannerService {
     }
 
     async findAllByTravel(travelId: number) {
-        return await this.dailyPlannerRepository.find({
+        const planners = await this.dailyPlannerRepository.find({
             where: { travel: { id: travelId } as any },
             relations: ['items'],
             order: { plan_date: 'ASC' },
         });
+
+        // 각 플래너의 아이템들을 sequence 순으로 정렬
+        planners.forEach(planner => {
+            if (planner.items) {
+                planner.items.sort((a, b) => a.sequence - b.sequence);
+            }
+        });
+
+        return planners;
     }
 
     async findOne(id: number) {
@@ -302,6 +362,12 @@ export class PlannerService {
             relations: ['items'],
         });
         if (!plan) throw new NotFoundException('일정을 찾을 수 없습니다.');
+
+        // 아이템들을 sequence 순으로 정렬
+        if (plan.items) {
+            plan.items.sort((a, b) => a.sequence - b.sequence);
+        }
+
         return plan;
     }
 

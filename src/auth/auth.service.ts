@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './entities/user.entity';
@@ -33,7 +33,17 @@ export class AuthService {
   }
 
   async update(id: number, updateUserDto: UpdateUserDto) {
-    return this.userRepository.update(id, updateUserDto);
+    if (updateUserDto.user_id) {
+        const existingUser = await this.userRepository.findOne({ where: { user_id: updateUserDto.user_id } });
+        if (existingUser && existingUser.id !== id) {
+            throw new ConflictException('이미 존재하는 아이디입니다.');
+        }
+    }
+    if (updateUserDto.user_pw) {
+      updateUserDto.user_pw = await bcrypt.hash(updateUserDto.user_pw, 12);
+    }
+    await this.userRepository.update(id, updateUserDto);
+    return this.findOne(id);
   }
 
   async remove(id: number) {

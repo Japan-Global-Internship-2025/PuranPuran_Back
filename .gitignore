@@ -3,6 +3,8 @@ make-csv.js
 swagger.json
 api-docs.csv
 
+/audio
+
 # compiled output
 /dist
 /node_modules

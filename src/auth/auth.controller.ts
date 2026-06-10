@@ -57,6 +57,13 @@ export class AuthController {
     return result;
   }
 
+  @ApiOperation({ summary: '사용자 로그아웃' })
+  @Post('logout')
+  logout(@Res({ passthrough: true }) response: Response) {
+    response.clearCookie('access_token', { httpOnly: true, sameSite: 'lax', secure: false, path: '/' });
+    return { message: '로그아웃되었습니다.' };
+  }
+
   @ApiOperation({ summary : '사용자 이름 조회'})
   @UseGuards(AuthGuard('jwt'))
   @Get('username')

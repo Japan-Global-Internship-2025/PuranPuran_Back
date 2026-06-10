@@ -29,6 +29,9 @@ export class TravelService {
             throw new BadRequestException('유효하지 않은 여행 지역입니다.');
         }
 
+        if (createTravelDto.travel_name == null || createTravelDto.travel_name.trim() === '') {
+            createTravelDto.travel_name = `${region_id.region_ko} 여행`;
+        }
         const travel = await this.travelRepository.create({
             ...createTravelDto, 
             user: { id: user.id },
@@ -50,7 +53,22 @@ export class TravelService {
             throw new NotFoundException(`삭제할 여행 정보를 찾을 수 없거나 권한이 없습니다.`);
         }
 
+        const user = await this.userRepository.findOne({ where: { id: user_id } });
+        
         await this.travelRepository.delete(id);
+
+        // 만약 삭제한 여행이 현재 선택된 여행(lastest_travel_id)이라면
+        if (user && user.lastest_travel_id === id) {
+            // 나머지 여행 중 가장 최근에 생성된 여행을 찾음
+            const latestRemainingTravel = await this.travelRepository.findOne({
+                where: { user: { id: user_id } as any },
+                order: { created_at: 'DESC' }
+            });
+
+            await this.userRepository.update(user_id, {
+                lastest_travel_id: latestRemainingTravel ? latestRemainingTravel.id : null
+            });
+        }
 
         return { message: '여행 정보가 성공적으로 삭제되었습니다.' };
     }
@@ -71,15 +89,26 @@ export class TravelService {
         if (isNaN(id)) {
             throw new NotFoundException('유효하지 않은 여행 ID입니다.');
         }
-        console.log('Finding travel with ID:', id, 'for user ID:', user_id);
 
-        const travel = await this.travelRepository.findOne({
+        let travel = await this.travelRepository.findOne({
             where: { id: id, user: user_id as any },
             relations: ['travel_region_id'],
         });
+
         if (!travel) {
-            throw new NotFoundException('해당 여행 정보를 찾을 수 없습니다.');
+            // 여행이 없으면 가장 최근 여행을 찾음
+            travel = await this.travelRepository.findOne({
+                where: { user: { id: user_id } as any },
+                order: { created_at: 'DESC' },
+                relations: ['travel_region_id'],
+            });
+            
+            // 여전히 없다면 에러
+            if (!travel) {
+                throw new NotFoundException('해당 여행 정보를 찾을 수 없습니다.');
+            }
         }
+        
         return travel;
     }
 
@@ -111,4 +140,6 @@ export class TravelService {
         });
         return recommendPlaces;
     }
+
+    
 }
