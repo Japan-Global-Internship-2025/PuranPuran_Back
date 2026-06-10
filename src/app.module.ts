@@ -19,6 +19,8 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { APP_INTERCEPTOR, APP_FILTER } from '@nestjs/core';
 import { RecommendPlace } from './travel/entities/recommend-place.entity';
 import { TravelRegion } from './travel/entities/travel-region.entity';
+import { JapaneseModule } from './japanese/japanese.module';
+import { JapaneseExpression } from './japanese/entities/japanese-expression.entity';
 
 @Module({
   imports: [
@@ -34,11 +36,11 @@ import { TravelRegion } from './travel/entities/travel-region.entity';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_NAME'),
-        entities: [User, ExchangeRate, Travel, Spending, DailyPlanner, PlannerItem, TravelRegion, RecommendPlace], 
+        entities: [User, ExchangeRate, Travel, Spending, DailyPlanner, PlannerItem, TravelRegion, RecommendPlace, JapaneseExpression], 
         synchronize: true,
       }),
     }), 
-    AuthModule, TravelModule, SpendingModule, PlannerModule,
+    AuthModule, TravelModule, SpendingModule, PlannerModule, JapaneseModule,
   ],
   controllers: [AppController],
   providers: [AppService,

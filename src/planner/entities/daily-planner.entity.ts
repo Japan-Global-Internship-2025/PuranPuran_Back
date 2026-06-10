@@ -29,8 +29,14 @@ export class DailyPlanner {
   @Column({ type: 'text', nullable: true })
   ai_request!: string | null; // 유저가 입력한 한 줄 요청사항
 
+  @Column({ type: 'decimal', precision: 9, scale: 6, nullable: true })
+  latitude?: number;
+
+  @Column({ type: 'decimal', precision: 9, scale: 6, nullable: true })
+  longitude?: number;
+
   // 어떤 여행에 속하는지
-  @ManyToOne(() => Travel, travel => travel.dailyPlanners)
+  @ManyToOne(() => Travel, travel => travel.dailyPlanners, { onDelete: 'CASCADE' })
   travel!: Travel;
 
   // 이 하루에 포함된 여러 세부 일정들 (cascade를 켜두면 한 번에 저장하기 편합니다)

@@ -14,3 +14,4 @@ export class ExchangeRateController {
     return this.exchangeRateService.getRate();
   }
 }
+  
