@@ -3,10 +3,11 @@ import { SpendingService } from './spending.service';
 import { SpendingController } from './spending.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Spending } from './entities/spending.entity';
+import { Travel } from '../travel/entities/travel-entity';
 import { ExchangeRateModule } from 'src/exchange-rate/exchange-rate.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Spending]), ExchangeRateModule],
+  imports: [TypeOrmModule.forFeature([Spending, Travel]), ExchangeRateModule],
   controllers: [SpendingController],
   providers: [SpendingService],
 })

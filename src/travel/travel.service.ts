@@ -46,7 +46,7 @@ export class TravelService {
 
     async delete(id: number, user_id: number) {
         const travel = await this.travelRepository.findOne({
-            where: { id: id as any, user: user_id as any },
+            where: { id: id as any, user: { id: user_id } },
         });
 
         if (!travel) {
@@ -75,7 +75,7 @@ export class TravelService {
 
     async update(id: number, user_id: number, updateTravelDto: UpdateTravelDto) {
         const travel = await this.travelRepository.findOne({
-            where: { id: id as any, user: user_id as any },
+            where: { id: id as any, user: { id: user_id } },
         });
         if (!travel) {
             throw new NotFoundException(`수정할 여행 정보를 찾을 수 없거나 권한이 없습니다.`);
@@ -91,7 +91,7 @@ export class TravelService {
         }
 
         let travel = await this.travelRepository.findOne({
-            where: { id: id, user: user_id as any },
+            where: { id: id, user: { id: user_id } },
             relations: ['travel_region_id'],
         });
 
@@ -114,14 +114,14 @@ export class TravelService {
 
     async findAll(user_id: number) {
         return this.travelRepository.find({
-            where: { user: user_id as any },
+            where: { user: { id: user_id } },
             relations: ['travel_region_id'],
         });
     }
 
     async getRecommendations(id: number, user_id: number) {
         const travel = await this.travelRepository.findOne({
-            where: { id: id, user: user_id as any },
+            where: { id: id, user: { id: user_id } },
             relations: { travel_region_id: true },
         });
         if (!travel) {
