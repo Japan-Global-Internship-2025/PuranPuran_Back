@@ -5,8 +5,13 @@ import { UpdatePlannerDto } from './dto/update-planner.dto';
 import { SavePlannerDto } from './dto/save-planner.dto';
 import { SaveTotalPlanDto } from './dto/save-total-plan.dto';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { JwtAuthGuard } from '@/auth/jwt-auth.guard';
+import { UseGuards } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @ApiTags('플래너(プランナー) API')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('api/planner')
 export class PlannerController {
   constructor(private readonly plannerService: PlannerService) { }
