@@ -31,6 +31,27 @@ export class PlannerService {
         this.tavily = tavily({ apiKey: process.env.TAVILY_API_KEY });
     }
 
+    // 해당 여행이 요청 사용자 소유인지 검증
+    private async assertTravelOwned(travelId: number, userId: number) {
+        const travel = await this.travelRepository.findOne({
+            where: { id: travelId, user: { id: userId } },
+        });
+        if (!travel) {
+            throw new NotFoundException('해당 여행 정보를 찾을 수 없거나 권한이 없습니다.');
+        }
+    }
+
+    // 해당 플래너가 요청 사용자 소유인지 검증 (plannerId 기반)
+    private async assertPlannerOwned(plannerId: number, userId: number) {
+        const planner = await this.dailyPlannerRepository.findOne({
+            where: { id: plannerId },
+            relations: ['travel', 'travel.user'],
+        });
+        if (!planner || planner.travel?.user?.id !== userId) {
+            throw new NotFoundException('일정을 찾을 수 없거나 권한이 없습니다.');
+        }
+    }
+
     private async getPixabayImage(keyword: string, placeName: string): Promise<string> {
         if (!keyword) return '';
         const apiKey = process.env.PIXABAY_API_KEY;
@@ -54,7 +75,8 @@ export class PlannerService {
     }
 
     // 💡 여행 전체의 대략적인 일정을 AI가 추천해줍니다.
-    async generateTotalPlanSummary(travelId: number) {
+    async generateTotalPlanSummary(travelId: number, userId: number) {
+        await this.assertTravelOwned(travelId, userId);
         const travelInfo = await this.travelRepository.findOne({
             where: { id: travelId },
             relations: ['user'],
@@ -107,7 +129,8 @@ export class PlannerService {
     }
 
     // 💡 AI가 추천해준 혹은 사용자가 수정한 '전체 대략적 일정'을 저장합니다.
-    async saveTotalPlan(travelId: number, saveTotalPlanDto: SaveTotalPlanDto) {
+    async saveTotalPlan(travelId: number, saveTotalPlanDto: SaveTotalPlanDto, userId: number) {
+        await this.assertTravelOwned(travelId, userId);
         const travel = await this.travelRepository.findOne({ where: { id: travelId } });
         if (!travel) throw new NotFoundException('여행 정보를 찾을 수 없습니다.');
 
@@ -138,7 +161,8 @@ export class PlannerService {
     }
 
     // 💡 총 여행 플래너의 장소 리스트를 저장합니다.
-    async saveTotalPlanPlaces(travelId: number, places: string[]) {
+    async saveTotalPlanPlaces(travelId: number, places: string[], userId: number) {
+        await this.assertTravelOwned(travelId, userId);
         const travel = await this.travelRepository.findOne({ where: { id: travelId } });
         if (!travel) throw new NotFoundException('여행 정보를 찾을 수 없습니다.');
 
@@ -148,7 +172,8 @@ export class PlannerService {
     }
 
 
-    async createAIPlan(travelId: number, createPlannerDto: CreatePlannerDto) {
+    async createAIPlan(travelId: number, createPlannerDto: CreatePlannerDto, userId: number) {
+        await this.assertTravelOwned(travelId, userId);
         const travelInfo = await this.travelRepository.findOne({
             where: { id: travelId },
             relations: ['user'],
@@ -305,7 +330,8 @@ export class PlannerService {
     }
 
 
-    async savePlan(travelId: number, savePlannerDto: SavePlannerDto) {
+    async savePlan(travelId: number, savePlannerDto: SavePlannerDto, userId: number) {
+        await this.assertTravelOwned(travelId, userId);
         // 기존 일정이 있는지 먼저 확인 (있으면 삭제 후 재생성하여 중복 방지)
         const existingPlan = await this.dailyPlannerRepository.findOne({
             where: { travel: { id: travelId } as any, plan_date: savePlannerDto.plan_date },
@@ -339,7 +365,8 @@ export class PlannerService {
         return await this.dailyPlannerRepository.save(newPlan);
     }
 
-    async findAllByTravel(travelId: number) {
+    async findAllByTravel(travelId: number, userId: number) {
+        await this.assertTravelOwned(travelId, userId);
         const planners = await this.dailyPlannerRepository.find({
             where: { travel: { id: travelId } as any },
             relations: ['items'],
@@ -356,7 +383,8 @@ export class PlannerService {
         return planners;
     }
 
-    async findOne(id: number) {
+    async findOne(id: number, userId: number) {
+        await this.assertPlannerOwned(id, userId);
         const plan = await this.dailyPlannerRepository.findOne({
             where: { id },
             relations: ['items'],
@@ -371,15 +399,18 @@ export class PlannerService {
         return plan;
     }
 
-    update(id: number, updatePlannerDto: UpdatePlannerDto) {
+    async update(id: number, updatePlannerDto: UpdatePlannerDto, userId: number) {
+        await this.assertPlannerOwned(id, userId);
         return `This action updates a #${id} planner`;
     }
 
-    remove(id: number) {
+    async remove(id: number, userId: number) {
+        await this.assertPlannerOwned(id, userId);
         return `This action removes a #${id} planner`;
     }
 
-    getTodayPlan(plannerId: number) {
+    async getTodayPlan(plannerId: number, userId: number) {
+        await this.assertPlannerOwned(plannerId, userId);
         return this.dailyPlannerRepository.findOne({
             where: { id: plannerId, plan_date: new Date().toISOString().split('T')[0] },
             relations: ['items'],

@@ -4,6 +4,7 @@ import { CreateSpendingDto } from './dto/create-receipt.dto';
 import { UpdateSpendingDto } from './dto/update-receipt.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { GetUser } from 'src/auth/get-user.decorator';
 import { FileInterceptor } from '@nestjs/platform-express';
 import 'multer';
 
@@ -37,59 +38,59 @@ export class SpendingController {
 
     @ApiOperation({ summary: '여행 ID에 따른 영수증 저장' })
     @Post('receipt/:travel_id')
-    create(@Param('travel_id') travel_id: string, @Body() createSpendingDto: CreateSpendingDto) {
-        return this.spendingService.create(createSpendingDto, +travel_id);
+    create(@Param('travel_id') travel_id: string, @Body() createSpendingDto: CreateSpendingDto, @GetUser() user: any) {
+        return this.spendingService.create(createSpendingDto, +travel_id, user.id);
     }
 
     @ApiOperation({ summary: '영수증 목록 조회' })
     @Get('receipt/:travel_id')
-    findAll(@Param('travel_id') travel_id: number) {
-        return this.spendingService.findAll(travel_id);
+    findAll(@Param('travel_id') travel_id: number, @GetUser() user: any) {
+        return this.spendingService.findAll(travel_id, user.id);
     }
 
     @ApiOperation({ summary: '단일 영수증 조회' })
     @Get('receipt/:travel_id/:id')
-    findOne(@Param('travel_id') travel_id: number, @Param('id') id: number) {
-        return this.spendingService.findOne(travel_id, id);
+    findOne(@Param('travel_id') travel_id: number, @Param('id') id: number, @GetUser() user: any) {
+        return this.spendingService.findOne(travel_id, id, user.id);
     }
 
     @ApiOperation({ summary: '영수증 수정' })
     @Patch('receipt/:id')
-    update(@Param('id') id: string, @Body() updateSpendingDto: UpdateSpendingDto) {
-        return this.spendingService.update(+id, updateSpendingDto);
+    update(@Param('id') id: string, @Body() updateSpendingDto: UpdateSpendingDto, @GetUser() user: any) {
+        return this.spendingService.update(+id, updateSpendingDto, user.id);
     }
 
     @ApiOperation({ summary: '영수증 삭제' })
     @Delete('receipt/:id')
-    remove(@Param('id') id: string) {
-        return this.spendingService.remove(+id);
+    remove(@Param('id') id: string, @GetUser() user: any) {
+        return this.spendingService.remove(+id, user.id);
     }
 
     @ApiOperation({ summary: '특정 날짜의 영수증 정보 조회' })
     @Get('receipt/:travel_id/date/:date')
-    selectedDayInfo(@Param('travel_id', ParseIntPipe) travel_id: number, @Param('date') date: string) {
+    selectedDayInfo(@Param('travel_id', ParseIntPipe) travel_id: number, @Param('date') date: string, @GetUser() user: any) {
         console.log(`특정 날짜의 영수증 정보 조회 API 호출, travel_id: ${travel_id}, date: ${date}`);
-        return this.spendingService.selectedDayInfo(travel_id, new Date(date));
+        return this.spendingService.selectedDayInfo(travel_id, new Date(date), user.id);
     }
 
     @ApiOperation({ summary: '총 지출 금액 조회' })
     @Get(':travel_id/total')
-    totalSpending(@Param('travel_id', ParseIntPipe) travel_id: number) {
+    totalSpending(@Param('travel_id', ParseIntPipe) travel_id: number, @GetUser() user: any) {
         console.log(`총 지출 금액 조회 API 호출, travel_id: ${travel_id}`);
-        return this.spendingService.totalSpending(travel_id);
+        return this.spendingService.totalSpending(travel_id, user.id);
     }
 
     @ApiOperation({ summary: '카테고리별 지출 금액 조회' })
     @Get(':travel_id/category')
-    categorySpending(@Param('travel_id', ParseIntPipe) travel_id: number) {
+    categorySpending(@Param('travel_id', ParseIntPipe) travel_id: number, @GetUser() user: any) {
         console.log(`카테고리별 지출 금액 조회 API 호출, travel_id: ${travel_id}`);
-        return this.spendingService.categorySpending(travel_id);
+        return this.spendingService.categorySpending(travel_id, user.id);
     }
 
     @ApiOperation({ summary: '최근 3개의 영수증 조회' })
     @Get(':travel_id/recent')
-    recentReceipts(@Param('travel_id', ParseIntPipe) travel_id: number) {
+    recentReceipts(@Param('travel_id', ParseIntPipe) travel_id: number, @GetUser() user: any) {
         console.log(`최근 3개의 영수증 조회 API 호출, travel_id: ${travel_id}`);
-        return this.spendingService.recentReceipts(travel_id);
+        return this.spendingService.recentReceipts(travel_id, user.id);
     }
 }

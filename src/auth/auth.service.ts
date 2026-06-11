@@ -20,7 +20,9 @@ export class AuthService {
     const { user_pw, ...userData } = createUserDto;
     const hashedPassword = await bcrypt.hash(user_pw, 12);
     const user = this.userRepository.create({ ...userData, user_pw: hashedPassword });
-    return this.userRepository.save(user);
+    const saved = await this.userRepository.save(user);
+    const { user_pw: _removed, ...safe } = saved;
+    return safe;
   }
 
   async findOne(id: number) {

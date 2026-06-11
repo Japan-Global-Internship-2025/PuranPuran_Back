@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { CreateSpendingDto } from './dto/create-receipt.dto';
 import { UpdateSpendingDto } from './dto/update-receipt.dto';
 import { Spending } from './entities/spending.entity';
+import { Travel } from '../travel/entities/travel-entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ExchangeRateService } from 'src/exchange-rate/exchange-rate.service';
@@ -19,25 +20,51 @@ export class SpendingService {
     });
     constructor(
         @InjectRepository(Spending) private spendingRepository: Repository<Spending>,
+        @InjectRepository(Travel) private travelRepository: Repository<Travel>,
         private readonly exchangeRateService: ExchangeRateService,
     ) { }
 
-    async create(createSpendingDto: CreateSpendingDto, travel_id: number) {
+    // 해당 여행이 요청 사용자 소유인지 검증
+    private async assertTravelOwned(travel_id: number, user_id: number) {
+        const travel = await this.travelRepository.findOne({
+            where: { id: travel_id, user: { id: user_id } },
+        });
+        if (!travel) {
+            throw new NotFoundException('해당 여행 정보를 찾을 수 없거나 권한이 없습니다.');
+        }
+    }
+
+    // 해당 영수증이 요청 사용자 소유인지 검증 (id만 있는 경우)
+    private async assertReceiptOwned(id: number, user_id: number) {
+        const spending = await this.spendingRepository.findOne({
+            where: { id },
+            relations: ['travel', 'travel.user'],
+        });
+        if (!spending || spending.travel?.user?.id !== user_id) {
+            throw new NotFoundException('해당 영수증을 찾을 수 없거나 권한이 없습니다.');
+        }
+    }
+
+    async create(createSpendingDto: CreateSpendingDto, travel_id: number, user_id: number) {
+        await this.assertTravelOwned(travel_id, user_id);
         const amount_total = createSpendingDto.total_amount;
         const nowday = dayjs().subtract(0, 'day').format('YYYY-MM-DD');
         const amount_total_krw = Math.floor((await this.exchangeRateService.getExchangeRateAPI(nowday) / 100) * amount_total);
         return await this.spendingRepository.save({ ...createSpendingDto, travel: { id: travel_id }, total_krw: amount_total_krw });
     }
 
-    async findAll(travel_id: number) {
+    async findAll(travel_id: number, user_id: number) {
+        await this.assertTravelOwned(travel_id, user_id);
         return await this.spendingRepository.find({ where: { travel: { id: travel_id } } });
     }
 
-    async findOne(travel_id: number, id: number) {
+    async findOne(travel_id: number, id: number, user_id: number) {
+        await this.assertTravelOwned(travel_id, user_id);
         return await this.spendingRepository.findOneBy({ id, travel: { id: travel_id } });
     }
 
-    async update(id: number, updateSpendingDto: UpdateSpendingDto) {
+    async update(id: number, updateSpendingDto: UpdateSpendingDto, user_id: number) {
+        await this.assertReceiptOwned(id, user_id);
         const existingSpending = await this.spendingRepository.findOne({ where: { id } });
         if (!existingSpending) {
             throw new NotFoundException('해당 영수증을 찾을 수 없습니다.');
@@ -61,11 +88,13 @@ export class SpendingService {
         return await this.spendingRepository.findOne({ where: { id } });
     }
 
-    async remove(id: number) {
+    async remove(id: number, user_id: number) {
+        await this.assertReceiptOwned(id, user_id);
         return await this.spendingRepository.delete(id);
     }
 
-    async selectedDayInfo(travel_id: number, date: Date) {
+    async selectedDayInfo(travel_id: number, date: Date, user_id: number) {
+        await this.assertTravelOwned(travel_id, user_id);
         const startOfDay = dayjs(date).startOf('day').toDate(); // 예: 2026-02-25 00:00:00
         const endOfDay = dayjs(date).endOf('day').toDate();     // 예: 2026-02-25 23:59:59
 
@@ -147,7 +176,8 @@ export class SpendingService {
         }
     }
 
-    async recentReceipts(travel_id: number) {
+    async recentReceipts(travel_id: number, user_id: number) {
+        await this.assertTravelOwned(travel_id, user_id);
         return await this.spendingRepository.find({
             where: { travel: { id: travel_id } },
             order: { date: 'DESC', id: 'DESC' },
@@ -155,7 +185,8 @@ export class SpendingService {
         });
     }
 
-    async totalSpending(travel_id: number) {
+    async totalSpending(travel_id: number, user_id: number) {
+        await this.assertTravelOwned(travel_id, user_id);
         const receipts = await this.spendingRepository.find({ where: { travel: { id: travel_id } } });
         console.log(receipts);
         // const totalAmount = receipts.reduce((sum, receipt) => sum + receipt.total_amount, 0);
@@ -163,7 +194,8 @@ export class SpendingService {
         return totalAmount;
     }
 
-    async categorySpending(travel_id: number) {
+    async categorySpending(travel_id: number, user_id: number) {
+        await this.assertTravelOwned(travel_id, user_id);
         const receipts = await this.spendingRepository.find({ where: { travel: { id: travel_id } } });
         const categoryTotals = receipts.reduce((totals, receipt) => {
             totals[receipt.category] = (totals[receipt.category] || 0) + receipt.total_krw;
