@@ -101,14 +101,15 @@ export class PlannerService {
         }
         catch (error) {
             // 한도 초과 에러 감지 (429, quota, limit exceeded, RESOURCE_EXHAUSTED 등)
+            const err = error as any;
             const isQuotaError =
-                (error as any)?.status === 429 ||
-                error?.message?.includes('quota') ||
-                error?.message?.includes('limit exceeded') ||
-                error?.message?.includes('RESOURCE_EXHAUSTED');
+                err?.status === 429 ||
+                err?.message?.includes('quota') ||
+                err?.message?.includes('limit exceeded') ||
+                err?.message?.includes('RESOURCE_EXHAUSTED');
 
             if (isQuotaError) {
-                console.warn('gemini-3.1-flash-lite-preview 한도 초과, gemma-4-26b-a4b-it 모델로 재시도:', error?.message);
+                console.warn('gemini-3.1-flash-lite-preview 한도 초과, gemma-4-26b-a4b-it 모델로 재시도:', err?.message);
                 try {
                     // 2. 한도 초과 시 gemini에서 gemma-4-26b-a4b-it 모델로 fallback
                     // gemma는 responseMimeType 'application/json' 미지원이므로 제거
@@ -135,7 +136,7 @@ export class PlannerService {
                 }
             }
 
-            console.error('AI 응답 생성 실패:', error);
+            console.error('AI 응답 생성 실패:', err);
             throw new Error('여행 일정 생성에 실패했습니다.');
         }
     }
