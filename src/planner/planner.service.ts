@@ -1,4 +1,3 @@
-import { Injectable } from '@nestjs/common';
 import { CreatePlannerDto } from './dto/create-planner.dto';
 import { UpdatePlannerDto } from './dto/update-planner.dto';
 import { PlannerItem } from './entities/planner-item.entity';
@@ -6,10 +5,11 @@ import { Repository, LessThan } from 'typeorm';
 import { DailyPlanner } from './entities/daily-planner.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import Groq from 'groq-sdk';
-import { InternalServerErrorException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InternalServerErrorException, NotFoundException, BadRequestException, Injectable } from '@nestjs/common';
 import { Travel } from '../travel/entities/travel-entity';
 import { tavily } from "@tavily/core";
 import { SavePlannerDto } from './dto/save-planner.dto';
+import { GoogleGenAI } from '@google/genai';
 import axios from 'axios';
 
 import { SaveTotalPlanDto } from './dto/save-total-plan.dto';
@@ -18,6 +18,7 @@ import { SaveTotalPlanDto } from './dto/save-total-plan.dto';
 export class PlannerService {
     private groq: Groq;
     private readonly tavily;
+    private readonly genai;
 
     constructor(
         @InjectRepository(DailyPlanner)
@@ -29,6 +30,7 @@ export class PlannerService {
     ) {
         this.groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
         this.tavily = tavily({ apiKey: process.env.TAVILY_API_KEY });
+        this.genai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     }
 
     // 해당 여행이 요청 사용자 소유인지 검증
@@ -74,6 +76,70 @@ export class PlannerService {
         }
     }
 
+    private async generateItinerary(prompt: string) {
+        try {
+            // 1. gemini-3.1-flash-lite-preview로 먼저 시도
+            const response = await this.genai.models.generateContent({
+                model: 'gemini-3.1-flash-lite-preview',
+                contents: [
+                    {
+                        role: 'user',
+                        parts: [
+                            { text: prompt }
+                        ]
+                    }
+                ],
+                config: {
+                    systemInstruction: '너는 일본 여행 플래너야. 반드시 JSON 형식으로만 대답해.',
+                    responseMimeType: 'application/json',
+                }
+            });
+
+            const result = response.text;
+            // console.log('AI 응답:', result);
+            return result || '{}'; // AI가 응답을 주지 않는 경우 빈 JSON 객체 반환
+        }
+        catch (error) {
+            // 한도 초과 에러 감지 (429, quota, limit exceeded, RESOURCE_EXHAUSTED 등)
+            const isQuotaError =
+                (error as any)?.status === 429 ||
+                error?.message?.includes('quota') ||
+                error?.message?.includes('limit exceeded') ||
+                error?.message?.includes('RESOURCE_EXHAUSTED');
+
+            if (isQuotaError) {
+                console.warn('gemini-3.1-flash-lite-preview 한도 초과, gemma-4-26b-a4b-it 모델로 재시도:', error?.message);
+                try {
+                    // 2. 한도 초과 시 gemini에서 gemma-4-26b-a4b-it 모델로 fallback
+                    // gemma는 responseMimeType 'application/json' 미지원이므로 제거
+                    const fallbackResponse = await this.genai.models.generateContent({
+                        model: 'gemma-4-26b-a4b-it',
+                        contents: [
+                            {
+                                role: 'user',
+                                parts: [
+                                    { text: prompt }
+                                ]
+                            }
+                        ],
+                        config: {
+                            systemInstruction: '너는 일본 여행 플래너야. 반드시 JSON 형식으로만 대답해.',
+                        }
+                    });
+
+                    const fallbackResult = fallbackResponse.text;
+                    return fallbackResult || '{}';
+                } catch (fallbackError) {
+                    console.error('gemma-4-26b-a4b-it 모델도 실패:', fallbackError);
+                    throw fallbackError;
+                }
+            }
+
+            console.error('AI 응답 생성 실패:', error);
+            throw new Error('여행 일정 생성에 실패했습니다.');
+        }
+    }
+
     // 💡 여행 전체의 대략적인 일정을 AI가 추천해줍니다.
     async generateTotalPlanSummary(travelId: number, userId: number) {
         await this.assertTravelOwned(travelId, userId);
@@ -88,7 +154,7 @@ export class PlannerService {
 
         const prompt = `
       다음 [여행 정보]를 바탕으로 전체 여행 기간(${travelInfo.travel_start_date.toISOString().split('T')[0]} ~ ${travelInfo.travel_end_date.toISOString().split('T')[0]}) 동안의 대략적인 일정을 짜줘.
-      각 날짜별로 어디를 가면 좋을지(ex. 나고야역 주변, 사카에 등) 짧은 요약을 만들어줘.
+      각 날짜별로 어디를 가면 좋을지(ex. 나고야역 주변, 사카에 등) 짧은 요약을 만들어줘. 무조건 이 기간안에 해야해.
 
       [여행 정보]
       - 여행 지역: ${travelInfo.travel_region}
@@ -112,16 +178,9 @@ export class PlannerService {
     `;
 
         try {
-            const chatCompletion = await this.groq.chat.completions.create({
-                messages: [
-                    { role: 'system', content: '너는 일본 여행 플래너야. 반드시 JSON 형식으로만 대답해.' },
-                    { role: 'user', content: prompt },
-                ],
-                model: 'qwen/qwen3-32b',
-                response_format: { type: 'json_object' },
-            });
+            const aiResponseText = await this.generateItinerary(prompt);
 
-            return JSON.parse(chatCompletion.choices[0].message.content!);
+            return JSON.parse(aiResponseText);
         } catch (error) {
             console.error('전체 일정 요약 생성 실패:', error);
             throw new InternalServerErrorException('전체 일정 요약을 생성하는 중 에러가 발생했습니다.');
@@ -225,20 +284,13 @@ export class PlannerService {
             .join("\n");
 
         const prompt = this.buildPrompt(createPlannerDto, travelInfo, searchContext, existingDailyPlan?.daily_description, visitedPlaces);
-        console.log('생성된 프롬프트:', prompt); // 디버깅을 위한 프롬프트 출력
+        // console.log('생성된 프롬프트:', prompt); // 디버깅을 위한 프롬프트 출력
 
         try {
-            // 2. Groq API 호출
-            const chatCompletion = await this.groq.chat.completions.create({
-                messages: [
-                    { role: 'system', content: '너는 일본 여행 일정 짜기 전문가야. 반드시 JSON 형식으로만 대답해.' },
-                    { role: 'user', content: prompt },
-                ],
-                model: 'qwen/qwen3-32b',
-                response_format: { type: 'json_object' },
-            });
 
-            const aiResponse = JSON.parse(chatCompletion.choices[0].message.content!);
+            const aiResponseText = await this.generateItinerary(prompt);
+
+            const aiResponse = JSON.parse(aiResponseText);
             const items = aiResponse.itinerary;
 
             // Pixabay에서 이미지 검색하여 가져오기
@@ -275,11 +327,10 @@ export class PlannerService {
 
     // 💡 인자에 daily_description: string | undefined 이 추가되었습니다.
     private buildPrompt(createPlannerDto: CreatePlannerDto, travel: any, searchContext: string, dailyDescription?: string | null, visitedPlaces: string[] = []): string {
-        console.log('여행 정보:', JSON.stringify(travel, null, 2));
+        // console.log('여행 정보:', JSON.stringify(travel, null, 2));
         return `
       다음 [여행 배경 정보], [오늘의 대략적인 일정], 그리고 [오늘의 요구사항]을 바탕으로 최적의 상세 일정을 짜줘. 
       사용자의 여행 배경과 실시간 검색 데이터를 바탕으로 최적의 일정을 짜줘.
-      꼭 여행 지역을 맞춰서 그 지역에서 실제로 존재하는 장소들로만 일정을 구성해줘.
 
       [실시간 검색 정보]
       ${searchContext}
@@ -291,7 +342,7 @@ export class PlannerService {
       - 숙소 정보(위치): ${travel.lodging_info || '아직 미정'}
       - 사용자 여행 취향: ${travel.user.taste}
       - 총 여행 플래너 장소: ${travel.places ? travel.places.join(', ') : '없음'}
-      - 이미 방문한 장소(중복 추천 금지): ${visitedPlaces.length > 0 ? visitedPlaces.join(', ') : '없음'}
+      - 이미 방문한 장소(중복 추천 자제): ${visitedPlaces.length > 0 ? visitedPlaces.join(', ') : '없음'}
 
       [오늘의 대략적인 일정]
       - ${dailyDescription || '없음 (네가 자유롭게 추천해줘)'}
@@ -304,11 +355,12 @@ export class PlannerService {
       [플래닝 가이드라인]
       1. 동선 최적화: 숙소 위치(${travel.lodging_info})와 이동 시간을 고려하여 현실적인 동선으로 짤 것.
       2. 취향 반영: 사용자의 여행 취향(${travel.user.taste})을 적극 반영한 장소를 추천할 것.
-      3. 대략적인 일정 준수: 오늘의 대략적인 일정(${dailyDescription || '없음'})이 있다면 그 흐름에 맞게 상세 일정을 구성할 것.
+      3. 대략적인 일정 준수: 오늘의 대략적인 일정(${dailyDescription || ''})이 있다면 그 흐름에 맞게 상세 일정을 구성할 것.
       4. 예산 고려: 총 예산을 고려하여 너무 과도한 지출이 발생하지 않는 선에서 카테고리(식사/쇼핑 등)를 분배할 것.
-      5. 중복 배제: [이미 방문한 장소] 목록에 있는 곳은 오늘 일정에서 제외할 것.
+      5. 중복 자제: [이미 방문한 장소] 목록에 있는 곳은 오늘 일정에서 자제할 것.
       6. 첫날은 숙소 주변에서 가볍게 시작하는 것을 추천. 마지막 날은 공항이나 역 근처에서 마무리하는 것을 추천.
       7. 장소 추천 시, 실제 존재하는 장소로만 짤 것. 그리고 위경도 정보도 최대한 정확하게 알려줄 것.
+      8. 약 5~10개의 장소를 추천해주되, 사용자의 요청사항 및 활동 가능 시간에 따라 유동적으로 조절할 것. (예: 식사 위주, 쇼핑 위주 등)
 
       응답은 반드시 아래 구조의 JSON 배열을 포함하는 객체여야 해:
       {
