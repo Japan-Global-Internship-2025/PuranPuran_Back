@@ -5,7 +5,7 @@ import { Spending } from './entities/spending.entity';
 import { Travel } from '../travel/entities/travel-entity';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ExchangeRateService } from 'src/exchange-rate/exchange-rate.service';
+import { ExchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { Between } from 'typeorm'; // 상단에 추가 필수!
 import dayjs from 'dayjs';
 import sharp from 'sharp';
@@ -48,9 +48,15 @@ export class SpendingService {
     async create(createSpendingDto: CreateSpendingDto, travel_id: number, user_id: number) {
         await this.assertTravelOwned(travel_id, user_id);
         const amount_total = createSpendingDto.total_amount;
-        const nowday = dayjs().subtract(0, 'day').format('YYYY-MM-DD');
-        const amount_total_krw = Math.floor((await this.exchangeRateService.getExchangeRateAPI(nowday) / 100) * amount_total);
-        return await this.spendingRepository.save({ ...createSpendingDto, travel: { id: travel_id }, total_krw: amount_total_krw });
+        const targetDate = dayjs(createSpendingDto.date || new Date()).format('YYYY-MM-DD');
+        const exchangeRate = await this.exchangeRateService.getLatestAvailableRate(targetDate);
+        const amount_total_krw = Math.floor((exchangeRate / 100) * amount_total);
+        
+        return await this.spendingRepository.save({ 
+            ...createSpendingDto, 
+            travel: { id: travel_id }, 
+            total_krw: amount_total_krw 
+        });
     }
 
     async findAll(travel_id: number, user_id: number) {
@@ -77,7 +83,7 @@ export class SpendingService {
             const formattedDate = dayjs(targetDate).format('YYYY-MM-DD');
 
             // 환율 정보 가져오기
-            const exchangeRate = await this.exchangeRateService.getExchangeRateAPI(formattedDate);
+            const exchangeRate = await this.exchangeRateService.getLatestAvailableRate(formattedDate);
             (updateSpendingDto as any).total_krw = Math.floor((exchangeRate / 100) * updateSpendingDto.total_amount);
 
             console.log(`금액 변경 감지: ${updateSpendingDto.total_amount}JPY -> ${(updateSpendingDto as any).total_krw}KRW (환율: ${exchangeRate})`);
